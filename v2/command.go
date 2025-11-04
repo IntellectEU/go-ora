@@ -1277,7 +1277,12 @@ func (stmt *Stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (dr
 
 	select {
 	case <-ctx.Done():
-		<-execDone
+		res := <-execDone
+		if res.err != nil {
+			if isBadConn(res.err) {
+				stmt.connection.setBad()
+			}
+		}
 		return nil, ctx.Err()
 
 	case res := <-execDone:
@@ -2029,7 +2034,12 @@ func (stmt *Stmt) QueryContext(ctx context.Context, namedArgs []driver.NamedValu
 
 	select {
 	case <-ctx.Done():
-		<-queryDone 
+		res := <-queryDone
+		if res.err != nil {
+			if isBadConn(res.err) {
+				stmt.connection.setBad()
+			}
+		}
 		return nil, ctx.Err()
 
 	case res := <-queryDone:

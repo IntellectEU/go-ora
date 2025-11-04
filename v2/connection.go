@@ -1197,8 +1197,8 @@ func (conn *Connection) QueryContext(ctx context.Context, query string, args []d
 }
 
 func (conn *Connection) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
-	if conn.State != Opened || !conn.session.Connected {
-		if !conn.session.Connected {
+	if conn.State != Opened || conn.session == nil || !conn.session.Connected {
+		if conn.session == nil || !conn.session.Connected {
 			t := time.Now().Local()
 			err := conn.OpenWithContext(ctx)
 			if err != nil {
