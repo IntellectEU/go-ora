@@ -1238,38 +1238,70 @@ func (stmt *Stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (dr
 		stmt.connection.setBad()
 		return nil, driver.ErrBadConn
 	}
+
 	tracer := stmt.connection.tracer
 	tracer.Printf("Exec With Context:")
-	done := stmt.connection.session.StartContext(ctx)
-	defer stmt.connection.session.EndContext(done)
 	tracer.Printf("Exec:\n%s", stmt.text)
 	stmt.arrayBindCount = 0
-	result, err := stmt._exec(args)
-	if errors.Is(err, network.ErrConnReset) {
-		if stmt._hasReturnClause {
-			dataSet := &DataSet{}
-			err = stmt.read(dataSet.currentResultSet())
-			if !errors.Is(err, network.ErrConnReset) {
-				if isBadConn(err) {
-					stmt.connection.setBad()
+
+	done := stmt.connection.session.StartContext(ctx)
+	defer stmt.connection.session.EndContext(done)
+
+	type execResult struct {
+		result driver.Result
+		err    error
+	}
+	execDone := make(chan execResult, 1)
+
+	go func() {
+		result, err := stmt._exec(args)
+
+		if errors.Is(err, network.ErrConnReset) {
+			if stmt._hasReturnClause {
+				dataSet := &DataSet{}
+				err = stmt.read(dataSet.currentResultSet())
+				if !errors.Is(err, network.ErrConnReset) {
+					execDone <- execResult{result: nil, err: err}
+					return
 				}
-				return nil, err
+			}
+			err = stmt.connection.read()
+			session := stmt.connection.session
+			if session.Summary != nil {
+				stmt.cursorID = session.Summary.CursorID
 			}
 		}
-		err = stmt.connection.read()
+
+		execDone <- execResult{result: result, err: err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		res := <-execDone
+		if res.err != nil {
+			if isBadConn(res.err) {
+				stmt.connection.setBad()
+			}
+		}
+		return nil, ctx.Err()
+
+	case res := <-execDone:
 		session := stmt.connection.session
-		if session.Summary != nil {
-			stmt.cursorID = session.Summary.CursorID
+		if res.err != nil && session.HasError() {
+			err := session.GetError()
+			if isBadConn(err) {
+				stmt.connection.setBad()
+			}
+			return nil, err
 		}
-	}
-	if err != nil {
-		if isBadConn(err) {
-			// tracer.Print("Error: ", err)
-			stmt.connection.setBad()
+		if res.err != nil {
+			if isBadConn(res.err) {
+				stmt.connection.setBad()
+			}
+			return nil, res.err
 		}
-		return nil, err
+		return res.result, nil
 	}
-	return result, nil
 }
 
 func (stmt *Stmt) fillStructPar(parValue driver.Value) error {
@@ -1982,12 +2014,51 @@ func (stmt *Stmt) QueryContext(ctx context.Context, namedArgs []driver.NamedValu
 		stmt.connection.setBad()
 		return nil, driver.ErrBadConn
 	}
+	
 	tracer := stmt.connection.tracer
 	tracer.Print("Query With Context:", stmt.text)
 
 	done := stmt.connection.session.StartContext(ctx)
 	defer stmt.connection.session.EndContext(done)
-	return stmt.Query_(namedArgs)
+
+	type queryResult struct {
+		rows driver.Rows
+		err  error
+	}
+	queryDone := make(chan queryResult, 1)
+
+	go func() {
+		rows, err := stmt.Query_(namedArgs)
+		queryDone <- queryResult{rows: rows, err: err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		res := <-queryDone
+		if res.err != nil {
+			if isBadConn(res.err) {
+				stmt.connection.setBad()
+			}
+		}
+		return nil, ctx.Err()
+
+	case res := <-queryDone:
+		session := stmt.connection.session
+		if res.err != nil && session.HasError() {
+			err := session.GetError()
+			if isBadConn(err) {
+				stmt.connection.setBad()
+			}
+			return nil, err
+		}
+		if res.err != nil {
+			if isBadConn(res.err) {
+				stmt.connection.setBad()
+			}
+			return nil, res.err
+		}
+		return res.rows, nil
+	}
 }
 
 // func (stmt *Stmt) reset() {
