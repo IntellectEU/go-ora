@@ -9,12 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/sijms/go-ora/v2/lazy_init"
 
 	"github.com/sijms/go-ora/v2/configurations"
 	"github.com/sijms/go-ora/v2/trace"
@@ -297,13 +294,43 @@ func (conn *Connection) Prepare(query string) (driver.Stmt, error) {
 func (conn *Connection) Ping(ctx context.Context) error {
 	conn.tracer.Print("Ping")
 	conn.session.ResetBuffer()
+
 	done := conn.session.StartContext(ctx)
 	defer conn.session.EndContext(done)
-	return (&simpleObject{
-		connection:  conn,
-		operationID: 0x93,
-		data:        nil,
-	}).exec()
+
+	pingDone := make(chan error, 1)
+
+	go func() {
+		err := (&simpleObject{
+			connection:  conn,
+			operationID: 0x93,
+			data:        nil,
+		}).exec()
+		
+		pingDone <- err
+	}()
+
+	select {
+	case <-ctx.Done():
+		resErr := <-pingDone 
+
+		if resErr != nil && isBadConn(resErr) {
+			conn.setBad()
+		}
+		
+		return ctx.Err()
+
+	case err := <-pingDone:
+		session := conn.session
+		if err != nil && session.HasError() {
+			err = session.GetError()
+		}
+
+		if err != nil && isBadConn(err) {
+			conn.setBad()
+		}
+		return err
+	}
 }
 
 func (conn *Connection) getDefaultCharsetID() int {
@@ -420,7 +447,7 @@ func (conn *Connection) OpenWithContext(ctx context.Context) error {
 			tf, err := os.Create(conn.connOption.TraceFilePath)
 			if err != nil {
 				//noinspection GoErrorStringFormat
-				return fmt.Errorf("Can't open trace file: %w", err)
+				return fmt.Errorf("can't open trace file: %w", err)
 			}
 			conn.tracer = trace.NewTraceWriter(tf)
 		} else {
@@ -828,7 +855,11 @@ func (conn *Connection) getServerNetworkInformation(code uint8) error {
 		if err != nil {
 			return err
 		}
-		conn.transactionID, err = session.GetClr()
+		clrBytes, err := session.GetClr()
+		if err != nil {
+			return err
+		}
+		conn.transactionID = clrBytes
 		if len(conn.transactionID) > length {
 			conn.transactionID = conn.transactionID[:length]
 		}
@@ -969,9 +1000,9 @@ func SetNTSAuth(newNTSManager advanced_nego.NTSAuthInterface) {
 	advanced_nego.NTSAuth = newNTSManager
 }
 
-var insertQueryBracketsRegexp = lazy_init.NewLazyInit(func() (interface{}, error) {
-	return regexp.Compile(`\((.*?)\)`)
-})
+// var insertQueryBracketsRegexp = lazy_init.NewLazyInit(func() (interface{}, error) {
+// 	return regexp.Compile(`\((.*?)\)`)
+// })
 
 // StructsInsert support interface{} array
 //func (conn *Connection) StructsInsert(sqlText string, values []interface{}) (driver.Result, error) {
@@ -1263,6 +1294,9 @@ func (conn *Connection) readMsg(msgCode uint8) error {
 			return err
 		}
 		size, err = session.GetInt(2, true, true)
+		if err != nil {
+			return err
+		}
 		for x := 0; x < size; x++ {
 			_, val, num, err := session.GetKeyVal()
 			if err != nil {
@@ -1349,7 +1383,7 @@ func (conn *Connection) readMsg(msgCode uint8) error {
 			return err
 		}
 	default:
-		return errors.New(fmt.Sprintf("TTC error: received code %d during response reading", msgCode))
+		return fmt.Errorf("TTC error: received code %d during response reading", msgCode)
 	}
 	return nil
 	// cancel loop if = 4 or 9

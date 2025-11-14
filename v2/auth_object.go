@@ -66,23 +66,23 @@ func newAuthObject(username string, password string, tcpNego *TCPNego, conn *Con
 				if err != nil {
 					return nil, err
 				}
-				if bytes.Compare(key, []byte("AUTH_SESSKEY")) == 0 {
+				if bytes.Equal(key, []byte("AUTH_SESSKEY")) {
 					if len(ret.EServerSessKey) == 0 {
 						ret.EServerSessKey = string(val)
 					}
-				} else if bytes.Compare(key, []byte("AUTH_VFR_DATA")) == 0 {
+				} else if bytes.Equal(key, []byte("AUTH_VFR_DATA")) {
 					if len(ret.Salt) == 0 {
 						ret.Salt = string(val)
 						ret.VerifierType = num
 					}
-				} else if bytes.Compare(key, []byte("AUTH_PBKDF2_CSK_SALT")) == 0 {
+				} else if bytes.Equal(key, []byte("AUTH_PBKDF2_CSK_SALT")) {
 					if len(ret.pbkdf2ChkSalt) == 0 {
 						ret.pbkdf2ChkSalt = string(val)
 						if len(ret.pbkdf2ChkSalt) != 32 {
 							return nil, network.NewOracleError(28041)
 						}
 					}
-				} else if bytes.Compare(key, []byte("AUTH_PBKDF2_VGEN_COUNT")) == 0 {
+				} else if bytes.Equal(key, []byte("AUTH_PBKDF2_VGEN_COUNT")) {
 					if ret.pbkdf2VgenCount == 0 {
 						ret.pbkdf2VgenCount, err = strconv.Atoi(string(val))
 						if err != nil {
@@ -92,7 +92,7 @@ func newAuthObject(username string, password string, tcpNego *TCPNego, conn *Con
 							ret.pbkdf2VgenCount = 4096
 						}
 					}
-				} else if bytes.Compare(key, []byte("AUTH_PBKDF2_SDER_COUNT")) == 0 {
+				} else if bytes.Equal(key, []byte("AUTH_PBKDF2_SDER_COUNT")) {
 					ret.pbkdf2SderCount, err = strconv.Atoi(string(val))
 					if ret.pbkdf2SderCount == 0 {
 						if err != nil {

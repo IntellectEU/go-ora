@@ -489,7 +489,7 @@ func (nego *DataTypeNego) read(session *network.Session) (zone *time.Location, e
 		return
 	}
 	if msg != 2 {
-		err = errors.New(fmt.Sprintf("message code error: received code %d and expected code is 2", msg))
+		err = fmt.Errorf("message code error: received code %d and expected code is 2", msg)
 		return
 	}
 	if nego.RuntimeCap[1] == 1 {
@@ -540,7 +540,7 @@ func (nego *DataTypeNego) read(session *network.Session) (zone *time.Location, e
 
 func (nego *DataTypeNego) write(session *network.Session) error {
 	session.ResetBuffer()
-	if nego.Server.ServerCompileTimeCaps == nil || len(nego.Server.ServerCompileTimeCaps) <= 27 || nego.Server.ServerCompileTimeCaps[27] == 0 {
+	if len(nego.Server.ServerCompileTimeCaps) <= 27 || nego.Server.ServerCompileTimeCaps[27] == 0 {
 		nego.CompileTimeCaps[27] = 0
 	}
 	session.PutBytes(nego.MessageCode)

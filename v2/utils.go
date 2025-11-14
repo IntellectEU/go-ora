@@ -3,7 +3,6 @@ package go_ora
 import (
 	"bytes"
 	"database/sql"
-	"database/sql/driver"
 	"errors"
 	"fmt"
 	"io"
@@ -276,31 +275,31 @@ func getTOID2(conn *sql.DB, owner, typeName string) ([]byte, error) {
 	return toid, err
 }
 
-func getTOID(conn *Connection, owner, typeName string) ([]byte, error) {
-	sqlText := `SELECT type_oid FROM ALL_TYPES WHERE UPPER(OWNER)=:1 AND UPPER(TYPE_NAME)=:2`
-	stmt := NewStmt(sqlText, conn)
-	defer func(stmt *Stmt) {
-		_ = stmt.Close()
-	}(stmt)
-	var ret []byte
-	rows, err := stmt.Query_([]driver.NamedValue{
-		{Value: strings.ToUpper(owner)},
-		{Value: strings.ToUpper(typeName)},
-	})
-	if err != nil {
-		return nil, err
-	}
-	if rows.Next_() {
-		err = rows.Scan(&ret)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if len(ret) == 0 {
-		return nil, fmt.Errorf("unknown type: %s", typeName)
-	}
-	return ret, rows.Err()
-}
+// func getTOID(conn *Connection, owner, typeName string) ([]byte, error) {
+// 	sqlText := `SELECT type_oid FROM ALL_TYPES WHERE UPPER(OWNER)=:1 AND UPPER(TYPE_NAME)=:2`
+// 	stmt := NewStmt(sqlText, conn)
+// 	defer func(stmt *Stmt) {
+// 		_ = stmt.Close()
+// 	}(stmt)
+// 	var ret []byte
+// 	rows, err := stmt.Query_([]driver.NamedValue{
+// 		{Value: strings.ToUpper(owner)},
+// 		{Value: strings.ToUpper(typeName)},
+// 	})
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	if rows.Next_() {
+// 		err = rows.Scan(&ret)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 	}
+// 	if len(ret) == 0 {
+// 		return nil, fmt.Errorf("unknown type: %s", typeName)
+// 	}
+// 	return ret, rows.Err()
+// }
 
 func encodeObject(session *network.Session, objectData []byte, isArray bool) []byte {
 	size := len(objectData)
@@ -322,47 +321,47 @@ func encodeObject(session *network.Session, objectData []byte, isArray bool) []b
 	return fieldsData.Bytes()
 }
 
-func putUDTAttributes(input *customType, pars []ParameterInfo, index int) ([]ParameterInfo, int) {
-	oPrimValue := make([]ParameterInfo, 0, len(input.attribs))
-	for _, attrib := range input.attribs {
-		if attrib.cusType != nil && !attrib.cusType.isArray {
-			var tempValue []ParameterInfo
-			tempValue, index = putUDTAttributes(attrib.cusType, pars, index)
-			attrib.oPrimValue = tempValue
-			oPrimValue = append(oPrimValue, attrib)
-		} else {
-			oPrimValue = append(oPrimValue, pars[index])
-			index++
-		}
-	}
-	return oPrimValue, index
-}
+// func putUDTAttributes(input *customType, pars []ParameterInfo, index int) ([]ParameterInfo, int) {
+// 	oPrimValue := make([]ParameterInfo, 0, len(input.attribs))
+// 	for _, attrib := range input.attribs {
+// 		if attrib.cusType != nil && !attrib.cusType.isArray {
+// 			var tempValue []ParameterInfo
+// 			tempValue, index = putUDTAttributes(attrib.cusType, pars, index)
+// 			attrib.oPrimValue = tempValue
+// 			oPrimValue = append(oPrimValue, attrib)
+// 		} else {
+// 			oPrimValue = append(oPrimValue, pars[index])
+// 			index++
+// 		}
+// 	}
+// 	return oPrimValue, index
+// }
 
-func getUDTAttributes(input *customType, value reflect.Value) []ParameterInfo {
-	output := make([]ParameterInfo, 0, 10)
-	for _, attrib := range input.attribs {
-		fieldValue := reflect.Value{}
-		if value.IsValid() && value.Kind() == reflect.Struct {
-			if fieldIndex, ok := input.fieldMap[attrib.Name]; ok {
-				fieldValue = value.Field(fieldIndex)
-			}
-		}
-		// if attribute is a nested type and not array
-		if attrib.cusType != nil && !attrib.cusType.isArray {
-			output = append(output, getUDTAttributes(attrib.cusType, fieldValue)...)
-		} else {
-			if isArrayValue(fieldValue) {
-				attrib.MaxNoOfArrayElements = 1
-			}
-			if fieldValue.IsValid() {
-				attrib.Value = fieldValue.Interface()
-			}
+// func getUDTAttributes(input *customType, value reflect.Value) []ParameterInfo {
+// 	output := make([]ParameterInfo, 0, 10)
+// 	for _, attrib := range input.attribs {
+// 		fieldValue := reflect.Value{}
+// 		if value.IsValid() && value.Kind() == reflect.Struct {
+// 			if fieldIndex, ok := input.fieldMap[attrib.Name]; ok {
+// 				fieldValue = value.Field(fieldIndex)
+// 			}
+// 		}
+// 		// if attribute is a nested type and not array
+// 		if attrib.cusType != nil && !attrib.cusType.isArray {
+// 			output = append(output, getUDTAttributes(attrib.cusType, fieldValue)...)
+// 		} else {
+// 			if isArrayValue(fieldValue) {
+// 				attrib.MaxNoOfArrayElements = 1
+// 			}
+// 			if fieldValue.IsValid() {
+// 				attrib.Value = fieldValue.Interface()
+// 			}
 
-			output = append(output, attrib)
-		}
-	}
-	return output
-}
+// 			output = append(output, attrib)
+// 		}
+// 	}
+// 	return output
+// }
 
 func isArrayValue(val interface{}) bool {
 	tyVal := reflect.TypeOf(val)
@@ -516,6 +515,9 @@ func decodeObject(conn *Connection, parent *ParameterInfo, temporaryLobs *[][]by
 						if attrib.cusType.isArray {
 							attrib.parent = nil
 							attrib.BValue, err = session.GetFixedClr()
+							if err != nil {
+								return err
+							}
 						}
 						err = decodeObject(conn, &attrib, temporaryLobs)
 						if err != nil {

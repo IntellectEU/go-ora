@@ -323,9 +323,7 @@ func NewStmt(text string, conn *Connection) *Stmt {
 	stmt.scnForSnapshot = make([]int, 2)
 	// get stmt type
 	uCmdText := strings.ToUpper(refineSqlText(text))
-	if strings.HasPrefix(uCmdText, "(") {
-		uCmdText = uCmdText[1:]
-	}
+	uCmdText = strings.TrimPrefix(uCmdText, "(")
 	if strings.HasPrefix(uCmdText, "SELECT") || strings.HasPrefix(uCmdText, "WITH") {
 		stmt.stmtType = SELECT
 	} else if strings.HasPrefix(uCmdText, "INSERT") ||
@@ -853,6 +851,9 @@ func (stmt *defaultStmt) read(resultSet *ResultSet) (err error) {
 				return err
 			}
 			size, err = session.GetInt(2, true, true)
+			if err != nil {
+				return err
+			}
 			for x := 0; x < size; x++ {
 				_, val, num, err := session.GetKeyVal()
 				if err != nil {
@@ -936,6 +937,9 @@ func (stmt *defaultStmt) read(resultSet *ResultSet) (err error) {
 			}
 			if resultSet.columnCount > 0 {
 				_, err = session.GetByte() // session.GetInt(1, false, false)
+				if err != nil {
+					return err
+				}
 			}
 			stmt.columns = make([]ParameterInfo, resultSet.columnCount)
 			for x := 0; x < resultSet.columnCount; x++ {
@@ -951,16 +955,34 @@ func (stmt *defaultStmt) read(resultSet *ResultSet) (err error) {
 				}
 			}
 			_, err = session.GetDlc()
+			if err != nil {
+				return err
+			}
 			if session.TTCVersion >= 3 {
 				_, err = session.GetInt(4, true, true)
+				if err != nil {
+					return err
+				}
 				_, err = session.GetInt(4, true, true)
+				if err != nil {
+					return err
+				}
 			}
 			if session.TTCVersion >= 4 {
 				_, err = session.GetInt(4, true, true)
+				if err != nil {
+					return err
+				}
 				_, err = session.GetInt(4, true, true)
+				if err != nil {
+					return err
+				}
 			}
 			if session.TTCVersion >= 5 {
 				_, err = session.GetDlc()
+				if err != nil {
+					return err
+				}
 			}
 		case 19:
 			session.ResetBuffer()
@@ -1098,65 +1120,65 @@ func (stmt *defaultStmt) freeTemporaryLobs() error {
 }
 
 // requestCustomTypeInfo an experimental function to ask for UDT information
-func (stmt *defaultStmt) requestCustomTypeInfo(typeName string) error {
-	session := stmt.connection.session
-	session.SaveState(nil)
-	session.PutBytes(0x3, 0x5c, 0)
-	session.PutInt(3, 4, true, true)
-	// session.PutInt(0x5C0003, 4, true, true)
-	// session.PutBytes(bytes.Repeat([]byte{0}, 79)...)
+// func (stmt *defaultStmt) requestCustomTypeInfo(typeName string) error {
+// 	session := stmt.connection.session
+// 	session.SaveState(nil)
+// 	session.PutBytes(0x3, 0x5c, 0)
+// 	session.PutInt(3, 4, true, true)
+// 	// session.PutInt(0x5C0003, 4, true, true)
+// 	// session.PutBytes(bytes.Repeat([]byte{0}, 79)...)
 
-	session.PutBytes(bytes.Repeat([]byte{0}, 19)...)
-	session.PutInt(2, 4, true, true)
-	// session.PutBytes(2)
-	session.PutInt(len(stmt.connection.connOption.UserID), 4, true, true)
-	// session.PutBytes(0, 0, 0)
-	session.PutClr(stmt.connection.sStrConv.Encode(stmt.connection.connOption.UserID))
-	session.PutInt(len(typeName), 4, true, true)
-	// session.PutBytes(0, 0, 0)
-	session.PutClr(stmt.connection.sStrConv.Encode(typeName))
-	// session.PutBytes(0, 0, 0)
-	// if session.TTCVersion >= 4 {
-	// 	session.PutBytes(0, 0, 1)
-	// }
-	// if session.TTCVersion >= 5 {
-	// 	session.PutBytes(0, 0, 0, 0, 0)
-	// }
-	// if session.TTCVersion >= 7 {
-	// 	if stmt.stmtType == DML && stmt.arrayBindCount > 0 {
-	// 		session.PutBytes(1)
-	// 		session.PutInt(stmt.arrayBindCount, 4, true, true)
-	// 		session.PutBytes(1)
-	// 	} else {
-	// 		session.PutBytes(0, 0, 0)
-	// 	}
-	// }
-	// if session.TTCVersion >= 8 {
-	// 	session.PutBytes(0, 0, 0, 0, 0)
-	// }
-	// if session.TTCVersion >= 9 {
-	// 	session.PutBytes(0, 0)
-	// }
-	// session.PutBytes(0, 0)
-	// session.PutInt(1, 4, true, true)
-	// session.PutBytes(0)
-	session.PutBytes(0, 0, 0, 0, 0, 1, 0, 0, 0, 0)
-	session.PutBytes(bytes.Repeat([]byte{0}, 50)...)
-	// session.PutBytes(0)
-	// session.PutInt(0x10000, 4, true, true)
-	// session.PutBytes(0, 0)
-	err := session.Write()
-	if err != nil {
-		return err
-	}
-	data, err := session.GetBytes(0x10)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("%#v\n", data)
-	session.LoadState()
-	return nil
-}
+// 	session.PutBytes(bytes.Repeat([]byte{0}, 19)...)
+// 	session.PutInt(2, 4, true, true)
+// 	// session.PutBytes(2)
+// 	session.PutInt(len(stmt.connection.connOption.UserID), 4, true, true)
+// 	// session.PutBytes(0, 0, 0)
+// 	session.PutClr(stmt.connection.sStrConv.Encode(stmt.connection.connOption.UserID))
+// 	session.PutInt(len(typeName), 4, true, true)
+// 	// session.PutBytes(0, 0, 0)
+// 	session.PutClr(stmt.connection.sStrConv.Encode(typeName))
+// 	// session.PutBytes(0, 0, 0)
+// 	// if session.TTCVersion >= 4 {
+// 	// 	session.PutBytes(0, 0, 1)
+// 	// }
+// 	// if session.TTCVersion >= 5 {
+// 	// 	session.PutBytes(0, 0, 0, 0, 0)
+// 	// }
+// 	// if session.TTCVersion >= 7 {
+// 	// 	if stmt.stmtType == DML && stmt.arrayBindCount > 0 {
+// 	// 		session.PutBytes(1)
+// 	// 		session.PutInt(stmt.arrayBindCount, 4, true, true)
+// 	// 		session.PutBytes(1)
+// 	// 	} else {
+// 	// 		session.PutBytes(0, 0, 0)
+// 	// 	}
+// 	// }
+// 	// if session.TTCVersion >= 8 {
+// 	// 	session.PutBytes(0, 0, 0, 0, 0)
+// 	// }
+// 	// if session.TTCVersion >= 9 {
+// 	// 	session.PutBytes(0, 0)
+// 	// }
+// 	// session.PutBytes(0, 0)
+// 	// session.PutInt(1, 4, true, true)
+// 	// session.PutBytes(0)
+// 	session.PutBytes(0, 0, 0, 0, 0, 1, 0, 0, 0, 0)
+// 	session.PutBytes(bytes.Repeat([]byte{0}, 50)...)
+// 	// session.PutBytes(0)
+// 	// session.PutInt(0x10000, 4, true, true)
+// 	// session.PutBytes(0, 0)
+// 	err := session.Write()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	data, err := session.GetBytes(0x10)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	fmt.Printf("%#v\n", data)
+// 	session.LoadState()
+// 	return nil
+// }
 
 func (stmt *defaultStmt) calculateColumnValue(col *ParameterInfo, udt bool) error {
 	session := stmt.connection.session
@@ -1807,7 +1829,7 @@ func (stmt *Stmt) useNamedParameters() error {
 		for x := 0; x < len(names); x++ {
 			found := false
 			for _, par := range stmt.Pars {
-				if strings.ToLower(par.Name) == strings.ToLower(names[x]) {
+				if strings.EqualFold(par.Name, names[x]) {
 					parCollection = append(parCollection, par)
 					found = true
 					break
@@ -1836,7 +1858,7 @@ func (stmt *Stmt) useNamedParameters() error {
 			}
 			found := false
 			for _, par := range stmt.Pars {
-				if strings.ToLower(par.Name) == strings.ToLower(names[x]) {
+				if strings.EqualFold(par.Name, names[x]) {
 					if !repeated {
 						parCollection = append(parCollection, par)
 					}
