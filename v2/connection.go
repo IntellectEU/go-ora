@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -631,6 +632,9 @@ func NewConnection(databaseUrl string, config *configurations.ConnectionConfig) 
 func (conn *Connection) Close() (err error) {
 	tracer := conn.tracer
 	tracer.Print("Close")
+	// Print stack trace to help identify who called Close()
+	tracer.Print("Close() called from:")
+	tracer.Print(string(debug.Stack()))
 	// var err error = nil
 	if conn.session != nil {
 		err = conn.Logoff()
