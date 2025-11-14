@@ -1,7 +1,6 @@
 package go_ora
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/sijms/go-ora/v2/network"
@@ -40,7 +39,7 @@ func GetDBVersion(session *network.Session) (*DBVersion, error) {
 		return nil, err
 	}
 	if msg != 8 {
-		return nil, errors.New(fmt.Sprintf("message code error: received code %d and expected code is 8", msg))
+		return nil, fmt.Errorf("message code error: received code %d and expected code is 8", msg)
 	}
 	length, err := session.GetInt(2, true, true)
 	if err != nil {

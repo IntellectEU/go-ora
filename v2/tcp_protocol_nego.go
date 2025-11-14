@@ -36,7 +36,7 @@ func newTCPNego(session *network.Session) (*TCPNego, error) {
 		return nil, err
 	}
 	if result.MessageCode != 1 {
-		return nil, errors.New(fmt.Sprintf("message code error: received code %d and expected code is 1", result.MessageCode))
+		return nil, fmt.Errorf("message code error: received code %d and expected code is 1", result.MessageCode)
 	}
 	result.ProtocolServerVersion, err = session.GetByte()
 	if err != nil {
@@ -106,7 +106,7 @@ func newTCPNego(session *network.Session) (*TCPNego, error) {
 	if len(result.ServerCompileTimeCaps) > 16 && result.ServerCompileTimeCaps[16]&1 != 0 {
 		session.HasFSAPCapability = true
 	}
-	if result.ServerCompileTimeCaps == nil || len(result.ServerCompileTimeCaps) < 8 {
+	if len(result.ServerCompileTimeCaps) < 8 {
 		return nil, errors.New("server compile time caps length less than 8")
 	}
 	if len(result.ServerCompileTimeCaps) > 37 && result.ServerCompileTimeCaps[37]&32 != 0 {

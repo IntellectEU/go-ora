@@ -4,11 +4,12 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"github.com/sijms/go-ora/v2/network"
-	"github.com/sijms/go-ora/v2/trace"
 	"io"
 	"reflect"
 	"strings"
+
+	"github.com/sijms/go-ora/v2/network"
+	"github.com/sijms/go-ora/v2/trace"
 )
 
 type Row []driver.Value
@@ -62,6 +63,9 @@ func (resultSet *ResultSet) load(session *network.Session) error {
 	}
 	resultSet.setBitVector(bitVector)
 	_, err = session.GetDlc()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -44,7 +44,7 @@ func checkParInfo(par *ParameterInfo, expPar *ParameterInfo) error {
 	if !reflect.DeepEqual(par.iPrimValue, expPar.iPrimValue) {
 		return fmt.Errorf("expected primary values %v and get %v", expPar.iPrimValue, par.iPrimValue)
 	}
-	if bytes.Compare(par.BValue, expPar.BValue) != 0 {
+	if !bytes.Equal(par.BValue, expPar.BValue) {
 		return fmt.Errorf("expected binary value %v and get %v", expPar.BValue, par.BValue)
 	}
 	return nil
