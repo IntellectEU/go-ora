@@ -1365,6 +1365,7 @@ func (conn *Connection) setBad() {
 
 // ResetSession decides responsible for resetting a connection. Part of a keepConnOnRollback condition to decide if to keep a transaction after rollback.
 func (conn *Connection) ResetSession(_ context.Context) error {
+	conn.tracer.Printf("ResetSession: %t", conn.bad)
 	if conn.bad {
 		return driver.ErrBadConn
 	}
@@ -1373,7 +1374,8 @@ func (conn *Connection) ResetSession(_ context.Context) error {
 
 // IsValid validates if a connection has to be discarded. Part of a keepConnOnRollback condition to decide if to keep a transaction after rollback.
 func (conn *Connection) IsValid() bool {
-	// Connection is valid if it's not marked as bad and is in opened state
+	conn.tracer.Printf("IsValid: {bad: %t, closed: %d}", conn.bad, conn.State)
+	// Connection is valid if it's not marked as bad and is in the opened state
 	return !conn.bad && conn.State == Opened
 }
 
