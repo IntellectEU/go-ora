@@ -1361,6 +1361,8 @@ func (conn *Connection) readMsg(msgCode uint8) error {
 
 func (conn *Connection) setBad() {
 	conn.bad = true
+	conn.tracer.Print("setBad() called from:")
+	conn.tracer.Print(string(debug.Stack()))
 }
 
 // ResetSession decides responsible for resetting a connection. Part of a keepConnOnRollback condition to decide if to keep a transaction after rollback.
